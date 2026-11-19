@@ -1,33 +1,83 @@
 
-stage('Deploy to S3') {
-    steps {
-        withCredentials([
-            string(credentialsId: 'aws-access-key-id',
-                   variable: 'AWS_ACCESS_KEY_ID'),
-            string(credentialsId: 'aws-secret-access-key',
-                   variable: 'AWS_SECRET_ACCESS_KEY')
-        ]) {
-            sh '''
-                aws s3 sync frontend/dist/ \
-                s3://smart-task-shyam-403260035077-20261119/ --delete
-            '''
+pipeline {
+    agent any
+
+    tools {
+        nodejs 'Node20'
+    }
+
+    environment {
+        AWS_DEFAULT_REGION = 'ap-south-1'
+        S3_BUCKET = 'smart-task-shyam-403260035077-20261119'
+        CLOUDFRONT_ID = 'E9F0IEYOTKN4P'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                dir('frontend') {
+                    sh 'npm ci'
+                }
+            }
+        }
+
+        stage('Build Frontend') {
+            steps {
+                dir('frontend') {
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Deploy to S3') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',
+                           variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key',
+                           variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    sh '''
+                        aws sts get-caller-identity
+                        aws s3 sync frontend/dist/ s3://${S3_BUCKET}/ --delete
+                    '''
+                }
+            }
+        }
+
+        stage('CloudFront Invalidation') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'aws-access-key-id',
+                           variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'aws-secret-access-key',
+                           variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    sh '''
+                        aws cloudfront create-invalidation \
+                          --distribution-id ${CLOUDFRONT_ID} \
+                          --paths "/*"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Frontend deployed successfully to S3 and CloudFront!'
+        }
+
+        failure {
+            echo 'Frontend deployment failed. Check Console Output.'
         }
     }
 }
 
-stage('CloudFront Invalidation') {
-    steps {
-        withCredentials([
-            string(credentialsId: 'aws-access-key-id',
-                   variable: 'AWS_ACCESS_KEY_ID'),
-            string(credentialsId: 'aws-secret-access-key',
-                   variable: 'AWS_SECRET_ACCESS_KEY')
-        ]) {
-            sh '''
-                aws cloudfront create-invalidation \
-                --distribution-id E9F0IEYOTKN4P \
-                --paths "/*"
-            '''
-        }
-    }
-}
