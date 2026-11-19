@@ -1,0 +1,33 @@
+
+stage('Deploy to S3') {
+    steps {
+        withCredentials([
+            string(credentialsId: 'aws-access-key-id',
+                   variable: 'AWS_ACCESS_KEY_ID'),
+            string(credentialsId: 'aws-secret-access-key',
+                   variable: 'AWS_SECRET_ACCESS_KEY')
+        ]) {
+            sh '''
+                aws s3 sync frontend/dist/ \
+                s3://smart-task-shyam-403260035077-20261119/ --delete
+            '''
+        }
+    }
+}
+
+stage('CloudFront Invalidation') {
+    steps {
+        withCredentials([
+            string(credentialsId: 'aws-access-key-id',
+                   variable: 'AWS_ACCESS_KEY_ID'),
+            string(credentialsId: 'aws-secret-access-key',
+                   variable: 'AWS_SECRET_ACCESS_KEY')
+        ]) {
+            sh '''
+                aws cloudfront create-invalidation \
+                --distribution-id E9F0IEYOTKN4P \
+                --paths "/*"
+            '''
+        }
+    }
+}
